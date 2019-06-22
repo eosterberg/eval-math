@@ -1,7 +1,7 @@
 {
   "name": "eval-math",
   "version": "1.0.0",
-  "description": "",
+  "description": "Javascript library for evaluating math expressions.",
   "main": "index.js",
   "scripts": {
     "test": "node test.js"
