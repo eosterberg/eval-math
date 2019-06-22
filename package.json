@@ -1,0 +1,11 @@
+{
+  "name": "eval-math",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "author": "Erik Österberg",
+  "license": "MIT"
+}
