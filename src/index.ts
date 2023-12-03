@@ -12,7 +12,7 @@ type ExpressionStatement = {
 
 type BinaryExpression = {
   type: 'BinaryExpression';
-  operator: '+' | '-' | '*' | '/';
+  operator: '+' | '-' | '*' | '/' | '**';
   left: Expression;
   right: Expression;
 };
@@ -54,6 +54,8 @@ function evaluateAst(ast: Expression, context: EvaluationContext): number {
         return left * right;
       case '/':
         return left / right;
+      case '**':
+        return left ** right;
       default:
         throw new Error(`Unimplemented operator '${(ast as any).operator}'`);
     }

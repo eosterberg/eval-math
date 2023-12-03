@@ -730,9 +730,17 @@ UnaryOperator
   / "~"
   / "!"
 
-MultiplicativeExpression
+ExponentiationExpression
   = head:UnaryExpression
-    tail:(__ MultiplicativeOperator __ UnaryExpression)*
+    tail:(__ ExponentiationOperator __ ExponentiationExpression)*
+    { return buildBinaryExpression(head, tail); }
+
+ExponentiationOperator
+  = $("**" !"=")
+
+MultiplicativeExpression
+  = head:ExponentiationExpression
+    tail:(__ MultiplicativeOperator __ ExponentiationExpression)*
     { return buildBinaryExpression(head, tail); }
 
 MultiplicativeOperator
@@ -944,7 +952,8 @@ AssignmentExpressionNoIn
   / ConditionalExpressionNoIn
 
 AssignmentOperator
-  = "*="
+  = "**="
+  / "*="
   / "/="
   / "%="
   / "+="
