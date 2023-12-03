@@ -113,4 +113,78 @@ describe('Math expression evaluator', () => {
     const result = evalMath('x = 5; x *= 1 + 2; x - 4');
     expect(result).toBe(11);
   });
+
+  it('Broadcasts values to vectors based on context', () => {
+    const context: EvaluationContext = new Map();
+    const t = new Float64Array(10).map((_, i) => 0.1 * i);
+    context.set('t', t);
+    const sinusoid = evalMath('sin(2*PI * t)', context);
+
+    const expected = new Float64Array([
+      0, 0.5877852522924731, 0.9510565162951535, 0.9510565162951535,
+      0.5877852522924732, 0, -0.5877852522924734, -0.9510565162951535,
+      -0.9510565162951536, -0.5877852522924734,
+    ]);
+
+    for (let i = 0; i < 10; ++i) {
+      expect(sinusoid[i]).toBeCloseTo(expected[i]);
+    }
+  });
+
+  it('Requires a size to create indepentent samples upon broadcasting', () => {
+    const context: EvaluationContext = new Map();
+    const one = new Float64Array(10).fill(1);
+    context.set('one', one);
+    const correlated = evalMath('one + random()', context);
+    expect(correlated[0]).toBe(correlated[1]);
+
+    const uncorrelated = evalMath('one + random(10)', context);
+    expect(uncorrelated[0]).not.toBe(uncorrelated[1]);
+
+    for (let i = 0; i < 10; ++i) {
+      expect(correlated[i]).not.toBeLessThan(1);
+      expect(correlated[i]).not.toBeGreaterThan(2);
+
+      expect(uncorrelated[i]).not.toBeLessThan(1);
+      expect(uncorrelated[i]).not.toBeGreaterThan(2);
+    }
+  });
+
+  it('Has zeros like numpy', () => {
+    const zeros = evalMath('zeros(5)') as Float64Array;
+    expect(zeros).toHaveLength(5);
+    zeros.every(el => expect(el).toBe(0));
+  });
+
+  it('Has ones like numpy', () => {
+    const ones = evalMath('ones(6)') as Float64Array;
+    expect(ones).toHaveLength(6);
+    ones.every(el => expect(el).toBe(1));
+  });
+
+  it('Has arange like numpy', () => {
+    const range = evalMath('arange(10)') as Float64Array;
+    expect(range).toHaveLength(10);
+    range.every((el, i) => expect(el).toBe(i));
+  });
+
+  it('Has linspace like numpy', () => {
+    const space = evalMath('linspace(-1, 2)') as Float64Array;
+    expect(space).toHaveLength(50);
+    expect(space[0]).toBe(-1);
+    expect(space.slice(-1)[0]).toBe(2);
+  });
+
+  it('Has a full_like counterpart', () => {
+    const sevens = evalMath('z = zeros(11); fullLike(z, 7)') as Float64Array;
+    expect(sevens).toHaveLength(11);
+    sevens.every(el => expect(el).toBe(7));
+  });
+
+  it('Relies on JS semantics to prevent recursive vectorization', () => {
+    const nans = evalMath(
+      'invalidSize = full(3, 4); ones(invalidSize)'
+    ) as Float64Array;
+    nans.every(el => expect(el).toBeNaN());
+  });
 });

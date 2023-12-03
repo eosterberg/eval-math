@@ -1,6 +1,9 @@
 import {parse} from './math-ast.js';
 
-export type EvaluationContext = Map<string, number | Function>;
+export type Numeric = number | Float64Array;
+export type EvaluationContext = Map<string, Numeric | Function>;
+
+type BinaryOperator = '+' | '-' | '*' | '/' | '**';
 
 type Program = {
   type: 'Program';
@@ -14,7 +17,7 @@ type ExpressionStatement = {
 
 type BinaryExpression = {
   type: 'BinaryExpression';
-  operator: '+' | '-' | '*' | '/' | '**';
+  operator: BinaryOperator;
   left: Expression;
   right: Expression;
 };
@@ -46,7 +49,7 @@ type Identifier = {
 
 type Literal = {
   type: 'Literal';
-  value: number;
+  value: Numeric;
 };
 
 type Expression =
@@ -57,11 +60,81 @@ type Expression =
   | Identifier
   | Literal;
 
+// Make it like numpy
+function random(size?: number): Numeric {
+  if (size === undefined) {
+    return Math.random();
+  }
+  return new Float64Array(size).map(Math.random);
+}
+
+function zeros(size: number) {
+  return new Float64Array(size).fill(0);
+}
+
+function ones(size: number) {
+  return new Float64Array(size).fill(1);
+}
+
+function full(size: number, fillValue: number) {
+  return new Float64Array(size).fill(fillValue);
+}
+
+function zerosLike(other: Numeric) {
+  if (typeof other === 'number') {
+    return 0;
+  }
+  return zeros(other.length);
+}
+
+function onesLike(other: Numeric) {
+  if (typeof other === 'number') {
+    return 1;
+  }
+  return ones(other.length);
+}
+
+function fullLike(other: Numeric, fillValue: number) {
+  if (typeof other === 'number') {
+    return fillValue;
+  }
+  return full(other.length, fillValue);
+}
+
+function arange(start: number, stop?: number, step?: number) {
+  if (stop === undefined) {
+    stop = start;
+    start = 0;
+  }
+  if (step === undefined) {
+    step = 1;
+  }
+  const size = Math.floor((stop - start) / step);
+
+  return new Float64Array(size).map((_, i) => start + i * step!);
+}
+
+function linspace(start: number, stop: number, num = 50) {
+  const step = (stop - start) / (num - 1);
+  return new Float64Array(num).map((_, i) => start + i * step);
+}
+
+const EXTRA_FUNCTIONS: Record<string, Function> = {
+  zeros,
+  ones,
+  full,
+  zerosLike,
+  onesLike,
+  fullLike,
+  arange,
+  linspace,
+};
+
 function parseAst(source: string): Program {
   return parse(source);
 }
 
-function evaluateAst(ast: Expression, context: EvaluationContext): number {
+function evaluateAst(ast: Expression, context: EvaluationContext): Numeric {
   switch (ast.type) {
     case 'Literal':
       return ast.value;
@@ -69,20 +142,66 @@ function evaluateAst(ast: Expression, context: EvaluationContext): number {
   if (ast.type === 'BinaryExpression') {
     const left = evaluateAst(ast.left, context);
     const right = evaluateAst(ast.right, context);
-    switch (ast.operator) {
-      case '+':
-        return left + right;
-      case '-':
-        return left - right;
-      case '*':
-        return left * right;
-      case '/':
-        return left / right;
-      case '**':
-        return left ** right;
-      default:
-        throw new Error(`Unimplemented operator '${(ast as any).operator}'`);
+    if (typeof left === 'number') {
+      if (typeof right === 'number') {
+        switch (ast.operator) {
+          case '+':
+            return left + right;
+          case '-':
+            return left - right;
+          case '*':
+            return left * right;
+          case '/':
+            return left / right;
+          case '**':
+            return left ** right;
+        }
+      } else {
+        switch (ast.operator) {
+          case '+':
+            return right.map(r => left + r);
+          case '-':
+            return right.map(r => left - r);
+          case '*':
+            return right.map(r => left * r);
+          case '/':
+            return right.map(r => left / r);
+          case '**':
+            return right.map(r => left ** r);
+        }
+      }
+    } else {
+      if (typeof right === 'number') {
+        switch (ast.operator) {
+          case '+':
+            return left.map(l => l + right);
+          case '-':
+            return left.map(l => l - right);
+          case '*':
+            return left.map(l => l * right);
+          case '/':
+            return left.map(l => l / right);
+          case '**':
+            return left.map(l => l ** right);
+        }
+      } else {
+        // Trick TypeScript into accepting seemingly unreachable code below.
+        switch (ast.operator as any) {
+          case '+':
+            return left.map((l, i) => l + right[i]);
+          case '-':
+            return left.map((l, i) => l - right[i]);
+          case '*':
+            return left.map((l, i) => l * right[i]);
+          case '/':
+            return left.map((l, i) => l / right[i]);
+          case '**':
+            return left.map((l, i) => l ** right[i]);
+        }
+      }
     }
+    // The type hierarchy is incomplete so this is actually reachable.
+    throw new Error(`Unimplemented operator '${ast.operator}'`);
   } else if (ast.type === 'UnaryExpression') {
     if (!ast.prefix) {
       throw new Error('Only prefix unary operators implemented');
@@ -90,7 +209,7 @@ function evaluateAst(ast: Expression, context: EvaluationContext): number {
     const argument = evaluateAst(ast.argument, context);
     switch (ast.operator) {
       case '-':
-        return -argument;
+        return typeof argument === 'number' ? -argument : argument.map(x => -x);
       default:
         throw new Error(`Unimplemented operator '${(ast as any).operator}'`);
     }
@@ -103,38 +222,55 @@ function evaluateAst(ast: Expression, context: EvaluationContext): number {
       throw new Error(`TypeError: ${ast.callee.name} is not a function`);
     }
     const args = ast.arguments.map(arg => evaluateAst(arg, context));
-    return callee(...args);
+    if (args.every(arg => typeof arg === 'number')) {
+      return callee(...args);
+    }
+    if (args.length === 1) {
+      return (args[0] as Float64Array).map(x => callee(x));
+    }
+    let vectorLength = 1;
+    for (const arg of args) {
+      if (typeof arg !== 'number') {
+        vectorLength = arg.length;
+        break;
+      }
+    }
+    const result = new Float64Array(vectorLength);
+    for (let i = 0; i < vectorLength; ++i) {
+      const subArgs: number[] = [];
+      for (const arg of args) {
+        if (typeof arg === 'number') {
+          subArgs.push(arg);
+        } else {
+          subArgs.push(arg[i]);
+        }
+      }
+      result[i] = callee(...subArgs);
+    }
+    return result;
   } else if (ast.type === 'Identifier') {
     if (!context.has(ast.name)) {
       throw new Error(`ReferenceError: ${ast.name} is not defined`);
     }
     const value = context.get(ast.name)!;
-    if (typeof value !== 'number') {
+    if (typeof value === 'function') {
       throw new Error('Cannot evaluate to a function');
     }
     return value;
   } else if (ast.type === 'AssignmentExpression') {
-    let right = evaluateAst(ast.right, context);
-    if (ast.operator !== '=') {
-      let left = evaluateAst(ast.left, context);
-      switch (ast.operator) {
-        case '+=':
-          left += right;
-          break;
-        case '-=':
-          left -= right;
-          break;
-        case '*=':
-          left *= right;
-          break;
-        case '/=':
-          left /= right;
-          break;
-        case '**=':
-          left **= right;
-          break;
-      }
-      right = left;
+    let right: Numeric;
+    if (ast.operator === '=') {
+      right = evaluateAst(ast.right, context);
+    } else {
+      right = evaluateAst(
+        {
+          type: 'BinaryExpression',
+          operator: ast.operator.slice(0, -1) as BinaryOperator,
+          left: ast.left,
+          right: ast.right,
+        },
+        context
+      );
     }
     context.set(ast.left.name, right);
     return right;
@@ -142,7 +278,7 @@ function evaluateAst(ast: Expression, context: EvaluationContext): number {
   throw new Error(`${(ast as any).type} not implemented`);
 }
 
-export function evalMath(str: string, context?: EvaluationContext): number {
+export function evalMath(str: string, context?: EvaluationContext): Numeric {
   const program = parseAst(str);
 
   if (context === undefined) {
@@ -154,10 +290,22 @@ export function evalMath(str: string, context?: EvaluationContext): number {
   const mathPropNames = Object.getOwnPropertyNames(Math);
   const mathRecord = Math as unknown as Record<string, number | Function>;
   for (const name of mathPropNames) {
-    context.set(name, mathRecord[name]);
+    if (!context.has(name)) {
+      if (name === 'random') {
+        context.set(name, random);
+      } else {
+        context.set(name, mathRecord[name]);
+      }
+    }
   }
 
-  let result: number | undefined;
+  for (const name in EXTRA_FUNCTIONS) {
+    if (!context.has(name)) {
+      context.set(name, EXTRA_FUNCTIONS[name]);
+    }
+  }
+
+  let result: Numeric | undefined;
   for (const statement of program.body) {
     result = evaluateAst(statement.expression, context);
   }
