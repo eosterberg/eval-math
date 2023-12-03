@@ -1,5 +1,7 @@
 import {parse} from './math-ast.js';
 
+export type EvaluationContext = Map<string, number | Function>;
+
 type Program = {
   type: 'Program';
   body: ExpressionStatement[];
@@ -24,14 +26,28 @@ type UnaryExpression = {
   prefix: boolean;
 };
 
+type CallExpression = {
+  type: 'CallExpression';
+  callee: Identifier;
+  arguments: Expression[];
+};
+
+type Identifier = {
+  type: 'Identifier';
+  name: string;
+};
+
 type Literal = {
   type: 'Literal';
   value: number;
 };
 
-type Expression = BinaryExpression | UnaryExpression | Literal;
-
-type EvaluationContext = Map<string, number>;
+type Expression =
+  | BinaryExpression
+  | UnaryExpression
+  | CallExpression
+  | Identifier
+  | Literal;
 
 function parseAst(source: string): Program {
   return parse(source);
@@ -70,14 +86,44 @@ function evaluateAst(ast: Expression, context: EvaluationContext): number {
       default:
         throw new Error(`Unimplemented operator '${(ast as any).operator}'`);
     }
+  } else if (ast.type === 'CallExpression') {
+    if (!context.has(ast.callee.name)) {
+      throw new Error(`ReferenceError: ${ast.callee.name} is not defined`);
+    }
+    const callee = context.get(ast.callee.name);
+    if (typeof callee !== 'function') {
+      throw new Error(`TypeError: ${ast.callee.name} is not a function`);
+    }
+    const args = ast.arguments.map(arg => evaluateAst(arg, context));
+    return callee(...args);
+  } else if (ast.type === 'Identifier') {
+    if (!context.has(ast.name)) {
+      throw new Error(`ReferenceError: ${ast.name} is not defined`);
+    }
+    const value = context.get(ast.name)!;
+    if (typeof value !== 'number') {
+      throw new Error('Cannot evaluate to a function');
+    }
+    return value;
   }
   throw new Error('Not implemented');
 }
 
-export function evalMath(str: string): number {
+export function evalMath(str: string, context?: EvaluationContext): number {
   const program = parseAst(str);
 
-  const context: EvaluationContext = new Map();
+  if (context === undefined) {
+    context = new Map();
+  } else {
+    context = new Map(context);
+  }
+
+  const mathPropNames = Object.getOwnPropertyNames(Math);
+  const mathRecord = Math as unknown as Record<string, number | Function>;
+  for (const name of mathPropNames) {
+    context.set(name, mathRecord[name]);
+  }
+
   let result: number | undefined;
   for (const statement of program.body) {
     result = evaluateAst(statement.expression, context);
