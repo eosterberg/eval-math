@@ -32,6 +32,13 @@ type CallExpression = {
   arguments: Expression[];
 };
 
+type AssignmentExpression = {
+  type: 'AssignmentExpression';
+  operator: '=' | '+=' | '-=' | '*=' | '/=' | '**=';
+  left: Identifier;
+  right: Expression;
+};
+
 type Identifier = {
   type: 'Identifier';
   name: string;
@@ -46,6 +53,7 @@ type Expression =
   | BinaryExpression
   | UnaryExpression
   | CallExpression
+  | AssignmentExpression
   | Identifier
   | Literal;
 
@@ -105,8 +113,33 @@ function evaluateAst(ast: Expression, context: EvaluationContext): number {
       throw new Error('Cannot evaluate to a function');
     }
     return value;
+  } else if (ast.type === 'AssignmentExpression') {
+    let right = evaluateAst(ast.right, context);
+    if (ast.operator !== '=') {
+      let left = evaluateAst(ast.left, context);
+      switch (ast.operator) {
+        case '+=':
+          left += right;
+          break;
+        case '-=':
+          left -= right;
+          break;
+        case '*=':
+          left *= right;
+          break;
+        case '/=':
+          left /= right;
+          break;
+        case '**=':
+          left **= right;
+          break;
+      }
+      right = left;
+    }
+    context.set(ast.left.name, right);
+    return right;
   }
-  throw new Error('Not implemented');
+  throw new Error(`${(ast as any).type} not implemented`);
 }
 
 export function evalMath(str: string, context?: EvaluationContext): number {

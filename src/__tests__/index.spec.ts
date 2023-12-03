@@ -108,4 +108,9 @@ describe('Math expression evaluator', () => {
     const calculated = evalMath('FEIGENBAUM_DELTA', context);
     expect(calculated).toBe(4.66920160910299);
   });
+
+  it('Supports variable assignment', () => {
+    const result = evalMath('x = 5; x *= 1 + 2; x - 4');
+    expect(result).toBe(11);
+  });
 });
