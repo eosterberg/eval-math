@@ -187,6 +187,21 @@ describe('Math expression evaluator', () => {
     ) as Float64Array;
     nans.every(el => expect(el).toBeNaN());
   });
+
+  it('Supports uniform for loops', () => {
+    const phis = evalMath(`
+      phis = arange(1, 6);
+      for (i = 0; i < 3; ++i) {
+        phis = 1 + 1 / phis;
+      }
+      phis;
+    `);
+    expect(phis[0]).toBeCloseTo(5 / 3);
+    expect(phis[1]).toBeCloseTo(8 / 5);
+    expect(phis[2]).toBeCloseTo(11 / 7);
+    expect(phis[3]).toBeCloseTo(14 / 9);
+    expect(phis[4]).toBeCloseTo(17 / 11);
+  });
 });
 
 describe('Tagged template evaluator', () => {
