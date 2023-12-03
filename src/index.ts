@@ -314,3 +314,14 @@ export function evalMath(str: string, context?: EvaluationContext): Numeric {
   }
   return result;
 }
+
+export function em(strings: TemplateStringsArray, ...args: Numeric[]): Numeric {
+  const context: EvaluationContext = new Map();
+  let str = strings[0];
+  for (let i = 0; i < args.length; ++i) {
+    const identifier = `__templateArgument${i}`;
+    context.set(identifier, args[i]);
+    str += identifier + strings[i + 1];
+  }
+  return evalMath(str, context);
+}

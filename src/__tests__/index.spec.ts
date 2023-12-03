@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {EvaluationContext, evalMath} from '..';
+import {EvaluationContext, evalMath, em} from '..';
 
 describe('Math expression evaluator', () => {
   it.each([
@@ -186,5 +186,28 @@ describe('Math expression evaluator', () => {
       'invalidSize = full(3, 4); ones(invalidSize)'
     ) as Float64Array;
     nans.every(el => expect(el).toBeNaN());
+  });
+});
+
+describe('Tagged template evaluator', () => {
+  it('Behaves like evalMath/eval for basic expressions', () => {
+    expect(em`-2 + 3`).toBe(eval('-2 + 3'));
+    expect(em`13121 * 30.5 + (4+ 4 - (3 - 3     )) / 5 * 10`).toBe(
+      eval('13121 * 30.5 + (4+ 4 - (3 - 3     )) / 5 * 10')
+    );
+  });
+
+  it('Can be nested', () => {
+    expect(em`2 + ${em`3`} * 5`).toBe(17);
+  });
+
+  it('Can be used to vectorize addition', () => {
+    const oneTwoThree = new Float64Array([1, 2, 3]);
+    const primes = new Float64Array([2, 3, 5]);
+    const sum = em`${oneTwoThree} + ${primes}`;
+    expect(sum).toHaveLength(3);
+    expect(sum[0]).toBe(3);
+    expect(sum[1]).toBe(5);
+    expect(sum[2]).toBe(8);
   });
 });
