@@ -332,6 +332,17 @@ function evaluateExpression(
     if (args.length === 1) {
       return (args[0] as Float64Array).map(x => callee(x));
     }
+    if (args.length === 2) {
+      if (typeof args[0] === 'number') {
+        const x = args[0];
+        return (args[1] as Float64Array).map(y => callee(x, y));
+      } else if (typeof args[1] === 'number') {
+        const y = args[1];
+        return (args[0] as Float64Array).map(x => callee(x, y));
+      }
+      const ys = args[1] as Float64Array;
+      return (args[0] as Float64Array).map((x, i) => callee(x, ys[i]));
+    }
     let vectorLength = 1;
     for (const arg of args) {
       if (typeof arg !== 'number') {

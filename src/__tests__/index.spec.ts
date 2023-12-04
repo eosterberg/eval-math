@@ -221,6 +221,22 @@ describe('Math expression evaluator', () => {
     const x = evalMath('mod(-9, 4)');
     expect(x).toBe(3);
   });
+
+  it('Broadcasts binary functions', () => {
+    const x = evalMath('hypot(1, arange(3))');
+    const y = evalMath('hypot(1, arange(3))');
+    const z = evalMath('hypot(10 - arange(3), arange(3))');
+
+    expect(x).toEqual(y);
+
+    expect(x[0]).toBeCloseTo(1);
+    expect(x[1]).toBeCloseTo(Math.sqrt(2));
+    expect(x[2]).toBeCloseTo(Math.sqrt(5));
+
+    expect(z[0]).toBeCloseTo(10);
+    expect(z[1]).toBeCloseTo(Math.sqrt(9 * 9 + 1 * 1));
+    expect(z[2]).toBeCloseTo(Math.sqrt(8 * 8 + 2 * 2));
+  });
 });
 
 describe('Tagged template evaluator', () => {
