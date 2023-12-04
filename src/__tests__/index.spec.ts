@@ -14,6 +14,8 @@ describe('Math expression evaluator', () => {
     '2**3**3',
     '(2**3)**3',
     '12 * 2**-2 + 5 * -7',
+    '11 % 3',
+    '(-9) % 4',
   ])('Matches the result of raw eval("%s")', (expression: string) => {
     const calculated = evalMath(expression);
     const evaluated = eval(expression);
@@ -213,6 +215,11 @@ describe('Math expression evaluator', () => {
       'a = arange(5); a[a > 2] += 10; a[0] = -10; a'
     ) as Float64Array;
     expect(a).toEqual(new Float64Array([-10, 1, 2, 13, 14]));
+  });
+
+  it('Has a mathematically correct modulo', () => {
+    const x = evalMath('mod(-9, 4)');
+    expect(x).toBe(3);
   });
 });
 

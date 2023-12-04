@@ -5,6 +5,7 @@ import {
   VECTOR_ROUTINES,
   VECTOR_PROPERTIES,
 } from './vector-routines';
+import {EXTRA_FUNCTIONS} from './extra-functions';
 
 export type EvaluationContext = Map<string, Numeric | Function>;
 
@@ -13,6 +14,7 @@ type BinaryOperator =
   | '-'
   | '*'
   | '/'
+  | '%'
   | '**'
   | '<='
   | '>='
@@ -21,7 +23,9 @@ type BinaryOperator =
   | '==='
   | '!=='
   | '=='
-  | '!=';
+  | '!='
+  | '&&'
+  | '||';
 
 type Program = {
   type: 'Program';
@@ -57,7 +61,7 @@ type BinaryExpression = {
 
 type UnaryExpression = {
   type: 'UnaryExpression';
-  operator: '-';
+  operator: '+' | '-' | '!';
   argument: Expression;
   prefix: boolean;
 };
@@ -70,7 +74,7 @@ type CallExpression = {
 
 type AssignmentExpression = {
   type: 'AssignmentExpression';
-  operator: '=' | '+=' | '-=' | '*=' | '/=' | '**=';
+  operator: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '**=';
   left: Identifier | ComputedMemberExpression;
   right: Expression;
 };
@@ -133,6 +137,8 @@ function applyBinaryOperator(
           return left * right;
         case '/':
           return left / right;
+        case '%':
+          return left % right;
         case '**':
           return left ** right;
         case '<=':
@@ -153,6 +159,10 @@ function applyBinaryOperator(
         case '!=':
           // eslint-disable-next-line eqeqeq
           return Number(left != right);
+        case '&&':
+          return Number(left && right);
+        case '||':
+          return Number(left || right);
       }
     } else {
       switch (operator) {
@@ -164,6 +174,8 @@ function applyBinaryOperator(
           return right.map(r => left * r);
         case '/':
           return right.map(r => left / r);
+        case '%':
+          return right.map(r => left % r);
         case '**':
           return right.map(r => left ** r);
         case '<=':
@@ -184,6 +196,10 @@ function applyBinaryOperator(
         case '!=':
           // eslint-disable-next-line eqeqeq
           return right.map(r => Number(left != r));
+        case '&&':
+          return right.map(r => Number(left && r));
+        case '||':
+          return right.map(r => Number(left || r));
       }
     }
   } else {
@@ -197,6 +213,8 @@ function applyBinaryOperator(
           return left.map(l => l * right);
         case '/':
           return left.map(l => l / right);
+        case '%':
+          return left.map(l => l % right);
         case '**':
           return left.map(l => l ** right);
         case '<=':
@@ -217,6 +235,10 @@ function applyBinaryOperator(
         case '!=':
           // eslint-disable-next-line eqeqeq
           return left.map(l => Number(l != right));
+        case '&&':
+          return left.map(l => Number(l && right));
+        case '||':
+          return left.map(l => Number(l || right));
       }
     } else {
       // Trick TypeScript into accepting seemingly unreachable code below.
@@ -229,6 +251,8 @@ function applyBinaryOperator(
           return left.map((l, i) => l * right[i]);
         case '/':
           return left.map((l, i) => l / right[i]);
+        case '%':
+          return left.map((l, i) => l % right[i]);
         case '**':
           return left.map((l, i) => l ** right[i]);
         case '<=':
@@ -249,6 +273,10 @@ function applyBinaryOperator(
         case '!=':
           // eslint-disable-next-line eqeqeq
           return left.map((l, i) => Number(l != right[i]));
+        case '&&':
+          return left.map((l, i) => Number(l && right[i]));
+        case '||':
+          return left.map((l, i) => Number(l || right[i]));
       }
     }
   }
@@ -278,8 +306,14 @@ function evaluateExpression(
     }
     const argument = evaluateExpression(ast.argument, context);
     switch (ast.operator) {
+      case '+':
+        return typeof argument === 'number' ? +argument : argument.map(x => +x);
       case '-':
         return typeof argument === 'number' ? -argument : argument.map(x => -x);
+      case '!':
+        return typeof argument === 'number'
+          ? Number(!argument)
+          : argument.map(x => Number(!x));
       default:
         throw new Error(`Unimplemented operator '${(ast as any).operator}'`);
     }
@@ -458,6 +492,12 @@ function defaultContext(context?: EvaluationContext) {
   for (const name in VECTOR_ROUTINES) {
     if (!context.has(name)) {
       context.set(name, VECTOR_ROUTINES[name]);
+    }
+  }
+
+  for (const name in EXTRA_FUNCTIONS) {
+    if (!context.has(name)) {
+      context.set(name, EXTRA_FUNCTIONS[name]);
     }
   }
   return context;
