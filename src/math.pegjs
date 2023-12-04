@@ -568,6 +568,7 @@ PropertyAssignment
     "(" __ ")" __
     "{" __ body:FunctionBody __ "}"
     {
+      throw new Error('Getters not supported');
       return {
         type: "Property",
         key: key,
@@ -584,6 +585,7 @@ PropertyAssignment
     "(" __ params:PropertySetParameterList __ ")" __
     "{" __ body:FunctionBody __ "}"
     {
+      throw new Error('Setters not supported');
       return {
         type: "Property",
         key: key,
@@ -610,6 +612,7 @@ MemberExpression
         PrimaryExpression
       / FunctionExpression
       / NewToken __ callee:MemberExpression __ args:Arguments {
+          throw new Error('New expressions not supported');
           return { type: "NewExpression", callee: callee, arguments: args };
         }
     )
@@ -657,7 +660,6 @@ CallExpression
           };
         }
       / __ "." __ property:IdentifierName {
-        throw new Error("Property access not supported.");
           return {
             type: "MemberExpression",
             property: property,

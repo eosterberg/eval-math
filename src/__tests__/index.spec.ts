@@ -16,6 +16,13 @@ describe('Math expression evaluator', () => {
     '12 * 2**-2 + 5 * -7',
     '11 % 3',
     '(-9) % 4',
+    '762121 & 82343',
+    '934217 | 12377',
+    '213421 ^ 42341',
+    '1 << 2',
+    '(-1) >> 1',
+    '(-1) >>> 1',
+    '~7',
   ])('Matches the result of raw eval("%s")', (expression: string) => {
     const calculated = evalMath(expression);
     const evaluated = eval(expression);
@@ -271,6 +278,13 @@ describe('Math expression evaluator', () => {
       foo() + bar + baz + quux;
     `);
     expect(x).toBe(1 + 3 + 5 + 1);
+  });
+
+  it('Supports logical operators with short circuiting', () => {
+    const x = evalMath('b = 0; (a = 0) && (b = 999); a + b');
+    expect(x).toBe(0);
+    const y = evalMath('b = 0; (a = 1) || (b = 999); a + b');
+    expect(y).toBe(1);
   });
 });
 

@@ -9,6 +9,8 @@ import {EXTRA_FUNCTIONS} from './extra-functions';
 
 export type EvaluationContext = Map<string, Numeric | Function>;
 
+type LogicalOperator = '&&' | '||';
+
 type BinaryOperator =
   | '+'
   | '-'
@@ -24,8 +26,12 @@ type BinaryOperator =
   | '!=='
   | '=='
   | '!='
-  | '&&'
-  | '||';
+  | '&'
+  | '|'
+  | '^'
+  | '<<'
+  | '>>>'
+  | '>>';
 
 type Program = {
   type: 'Program';
@@ -82,6 +88,13 @@ type Statement =
   | ReturnStatement
   | VariableDeclaration;
 
+type LogicalExpression = {
+  type: 'LogicalExpression';
+  operator: LogicalOperator;
+  left: Expression;
+  right: Expression;
+};
+
 type BinaryExpression = {
   type: 'BinaryExpression';
   operator: BinaryOperator;
@@ -91,7 +104,7 @@ type BinaryExpression = {
 
 type UnaryExpression = {
   type: 'UnaryExpression';
-  operator: '+' | '-' | '!';
+  operator: '+' | '-' | '!' | '~';
   argument: Expression;
   prefix: boolean;
 };
@@ -104,7 +117,20 @@ type CallExpression = {
 
 type AssignmentExpression = {
   type: 'AssignmentExpression';
-  operator: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '**=';
+  operator:
+    | '='
+    | '+='
+    | '-='
+    | '*='
+    | '/='
+    | '%='
+    | '**='
+    | '&='
+    | '|='
+    | '^='
+    | '<<='
+    | '>>>='
+    | '>>=';
   left: Identifier | ComputedMemberExpression;
   right: Expression;
 };
@@ -148,6 +174,7 @@ type Literal = {
 };
 
 type Expression =
+  | LogicalExpression
   | BinaryExpression
   | UnaryExpression
   | CallExpression
@@ -226,10 +253,18 @@ function applyBinaryOperator(
         case '!=':
           // eslint-disable-next-line eqeqeq
           return Number(left != right);
-        case '&&':
-          return Number(left && right);
-        case '||':
-          return Number(left || right);
+        case '&':
+          return left & right;
+        case '|':
+          return left | right;
+        case '^':
+          return left ^ right;
+        case '<<':
+          return left << right;
+        case '>>>':
+          return left >>> right;
+        case '>>':
+          return left >> right;
       }
     } else {
       switch (operator) {
@@ -263,10 +298,18 @@ function applyBinaryOperator(
         case '!=':
           // eslint-disable-next-line eqeqeq
           return right.map(r => Number(left != r));
-        case '&&':
-          return right.map(r => Number(left && r));
-        case '||':
-          return right.map(r => Number(left || r));
+        case '&':
+          return right.map(r => left & r);
+        case '|':
+          return right.map(r => left | r);
+        case '^':
+          return right.map(r => left ^ r);
+        case '<<':
+          return right.map(r => left << r);
+        case '>>>':
+          return right.map(r => left >>> r);
+        case '>>':
+          return right.map(r => left >> r);
       }
     }
   } else {
@@ -302,10 +345,18 @@ function applyBinaryOperator(
         case '!=':
           // eslint-disable-next-line eqeqeq
           return left.map(l => Number(l != right));
-        case '&&':
-          return left.map(l => Number(l && right));
-        case '||':
-          return left.map(l => Number(l || right));
+        case '&':
+          return left.map(l => l & right);
+        case '|':
+          return left.map(l => l | right);
+        case '^':
+          return left.map(l => l ^ right);
+        case '<<':
+          return left.map(l => l << right);
+        case '>>>':
+          return left.map(l => l >>> right);
+        case '>>':
+          return left.map(l => l >> right);
       }
     } else {
       // Trick TypeScript into accepting seemingly unreachable code below.
@@ -340,10 +391,18 @@ function applyBinaryOperator(
         case '!=':
           // eslint-disable-next-line eqeqeq
           return left.map((l, i) => Number(l != right[i]));
-        case '&&':
-          return left.map((l, i) => Number(l && right[i]));
-        case '||':
-          return left.map((l, i) => Number(l || right[i]));
+        case '&':
+          return left.map((l, i) => l & right[i]);
+        case '|':
+          return left.map((l, i) => l | right[i]);
+        case '^':
+          return left.map((l, i) => l ^ right[i]);
+        case '<<':
+          return left.map((l, i) => l << right[i]);
+        case '>>>':
+          return left.map((l, i) => l >>> right[i]);
+        case '>>':
+          return left.map((l, i) => l >> right[i]);
       }
     }
   }
@@ -367,6 +426,17 @@ function evaluateExpression(
     const consequent = evaluateExpression(ast.consequent, context, globals);
     const alternate = evaluateExpression(ast.alternate, context, globals);
     return applyTernaryOperator(test, consequent, alternate);
+  } else if (ast.type === 'LogicalExpression') {
+    if (ast.operator === '&&') {
+      return (
+        evaluateExpression(ast.left, context, globals) &&
+        evaluateExpression(ast.right, context, globals)
+      );
+    }
+    return (
+      evaluateExpression(ast.left, context, globals) ||
+      evaluateExpression(ast.right, context, globals)
+    );
   } else if (ast.type === 'BinaryExpression') {
     const left = evaluateExpression(ast.left, context, globals);
     const right = evaluateExpression(ast.right, context, globals);
@@ -385,6 +455,8 @@ function evaluateExpression(
         return typeof argument === 'number'
           ? Number(!argument)
           : argument.map(x => Number(!x));
+      case '~':
+        return typeof argument === 'number' ? ~argument : argument.map(x => ~x);
       default:
         throw new Error(`Unimplemented operator '${(ast as any).operator}'`);
     }
