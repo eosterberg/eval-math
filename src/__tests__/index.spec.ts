@@ -330,6 +330,11 @@ describe('Math expression evaluator', () => {
   it('Reserves let', () => {
     expect(() => evalMath('let = 42')).toThrow();
   });
+
+  it('Supports if...else', () => {
+    const five = evalMath('if (1) 5; else 7');
+    expect(five).toBe(5);
+  });
 });
 
 describe('Tagged template evaluator', () => {

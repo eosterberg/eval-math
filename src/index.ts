@@ -99,6 +99,13 @@ type ForOfStatement = {
   body: Statement;
 };
 
+type IfStatement = {
+  type: 'IfStatement';
+  test: Expression;
+  consequent: Statement;
+  alternate: Statement;
+};
+
 type Statement =
   | ExpressionStatement
   | ForStatement
@@ -108,7 +115,8 @@ type Statement =
   | VariableDeclaration
   | ThrowStatement
   | ForInStatement
-  | ForOfStatement;
+  | ForOfStatement
+  | IfStatement;
 
 type LogicalExpression = {
   type: 'LogicalExpression';
@@ -718,6 +726,12 @@ function evaluateStatement(
       result = evaluateStatement(ast.body, context, globals);
     }
     return result;
+  } else if (ast.type === 'IfStatement') {
+    const test = evaluateExpression(ast.test, context, globals);
+    if (test) {
+      return evaluateStatement(ast.consequent, context, globals);
+    }
+    return evaluateStatement(ast.alternate, context, globals);
   }
   throw new Error(`${(ast as any).type} not implemented`);
 }
