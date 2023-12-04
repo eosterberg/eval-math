@@ -244,6 +244,28 @@ describe('Math expression evaluator', () => {
     );
     expect(x).toEqual(new Float64Array([1, 1, 4]));
   });
+
+  it('Supports user-defined functions', () => {
+    const x = evalMath(`
+      function geomMean(a, b) {
+        return sqrt(a * b);
+      }
+      geomMean(9, 25);
+    `);
+    expect(x).toBe(15);
+  });
+
+  it('Respects the return statement of user-defined functions', () => {
+    const x = evalMath(`
+      function foo() {
+        return 1;
+        // Should be unreachable
+        2;
+      }
+      foo();
+    `);
+    expect(x).toBe(1);
+  });
 });
 
 describe('Tagged template evaluator', () => {

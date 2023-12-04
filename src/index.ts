@@ -50,7 +50,24 @@ type BlockStatement = {
   body: Statement[];
 };
 
-type Statement = ExpressionStatement | ForStatement | BlockStatement;
+type FunctionDeclaration = {
+  type: 'FunctionDeclaration';
+  id: Identifier;
+  params: Identifier[];
+  body: Statement;
+};
+
+type ReturnStatement = {
+  type: 'ReturnStatement';
+  argument: Expression;
+};
+
+type Statement =
+  | ExpressionStatement
+  | ForStatement
+  | BlockStatement
+  | FunctionDeclaration
+  | ReturnStatement;
 
 type BinaryExpression = {
   type: 'BinaryExpression';
@@ -498,17 +515,22 @@ function evaluateExpression(
 function evaluateStatement(
   ast: Statement,
   context: EvaluationContext
-): Numeric | undefined {
+): Numeric | Function | undefined {
   if (ast.type === 'ExpressionStatement') {
     return evaluateExpression(ast.expression, context);
   } else if (ast.type === 'BlockStatement') {
-    let result: Numeric | undefined;
+    // Are we CoffeeScript now?
+    let hasReturned = false;
+    let result: Numeric | Function | undefined;
     for (const statement of ast.body) {
-      result = evaluateStatement(statement, context);
+      if (!hasReturned) {
+        result = evaluateStatement(statement, context);
+      }
+      hasReturned ||= statement.type === 'ReturnStatement';
     }
     return result;
   } else if (ast.type === 'ForStatement') {
-    let result: Numeric | undefined;
+    let result: Numeric | Function | undefined;
     for (
       result = evaluateExpression(ast.init, context);
       (result = evaluateExpression(ast.test, context));
@@ -517,6 +539,21 @@ function evaluateStatement(
       result = evaluateStatement(ast.body, context);
     }
     return result;
+  } else if (ast.type === 'FunctionDeclaration') {
+    const declaration = ast;
+    // eslint-disable-next-line no-inner-declarations
+    function userDefined(...args: Numeric[]) {
+      const localContext: EvaluationContext = new Map(context);
+      for (let i = 0; i < declaration.params.length; ++i) {
+        localContext.set(declaration.params[i].name, args[i]);
+      }
+      return evaluateStatement(declaration.body, localContext);
+    }
+    userDefined.prototype.name = declaration.id.name;
+    context.set(declaration.id.name, userDefined);
+    return userDefined;
+  } else if (ast.type === 'ReturnStatement') {
+    return evaluateExpression(ast.argument, context);
   }
   throw new Error(`${(ast as any).type} not implemented`);
 }
@@ -559,11 +596,11 @@ export function evalMath(str: string, context?: EvaluationContext): Numeric {
 
   context = defaultContext(context);
 
-  let result: Numeric | undefined;
+  let result: Numeric | Function | undefined;
   for (const statement of program.body) {
     result = evaluateStatement(statement, context);
   }
-  if (result === undefined) {
+  if (result === undefined || typeof result === 'function') {
     throw new Error('Expression must evaluate to a value');
   }
   return result;
@@ -600,11 +637,11 @@ export function evalIncremental(
         iterationContext.set(key, value[i]);
       }
     }
-    let result: Numeric | undefined;
+    let result: Numeric | Function | undefined;
     for (const statement of program.body) {
       result = evaluateStatement(statement, iterationContext);
     }
-    if (result === undefined) {
+    if (result === undefined || typeof result === 'function') {
       throw new Error('Expression must evaluate to a value');
     }
     if (typeof result !== 'number') {
