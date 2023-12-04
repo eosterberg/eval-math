@@ -3,7 +3,20 @@ import {type Numeric, random, VECTOR_ROUTINES} from './vector-routines';
 
 export type EvaluationContext = Map<string, Numeric | Function>;
 
-type BinaryOperator = '+' | '-' | '*' | '/' | '**' | '<=' | '>=' | '<' | '>';
+type BinaryOperator =
+  | '+'
+  | '-'
+  | '*'
+  | '/'
+  | '**'
+  | '<='
+  | '>='
+  | '<'
+  | '>'
+  | '==='
+  | '!=='
+  | '=='
+  | '!=';
 
 type Program = {
   type: 'Program';
@@ -109,6 +122,16 @@ function applyBinaryOperator(
           return Number(left < right);
         case '>':
           return Number(left > right);
+        case '===':
+          return Number(left === right);
+        case '!==':
+          return Number(left !== right);
+        case '==':
+          // eslint-disable-next-line eqeqeq
+          return Number(left == right);
+        case '!=':
+          // eslint-disable-next-line eqeqeq
+          return Number(left != right);
       }
     } else {
       switch (operator) {
@@ -130,6 +153,16 @@ function applyBinaryOperator(
           return right.map(r => Number(left < r));
         case '>':
           return right.map(r => Number(left > r));
+        case '===':
+          return right.map(r => Number(left === r));
+        case '!==':
+          return right.map(r => Number(left !== r));
+        case '==':
+          // eslint-disable-next-line eqeqeq
+          return right.map(r => Number(left == r));
+        case '!=':
+          // eslint-disable-next-line eqeqeq
+          return right.map(r => Number(left != r));
       }
     }
   } else {
@@ -153,6 +186,16 @@ function applyBinaryOperator(
           return left.map(l => Number(l < right));
         case '>':
           return left.map(l => Number(l > right));
+        case '===':
+          return left.map(l => Number(l === right));
+        case '!==':
+          return left.map(l => Number(l !== right));
+        case '==':
+          // eslint-disable-next-line eqeqeq
+          return left.map(l => Number(l == right));
+        case '!=':
+          // eslint-disable-next-line eqeqeq
+          return left.map(l => Number(l != right));
       }
     } else {
       // Trick TypeScript into accepting seemingly unreachable code below.
@@ -175,6 +218,16 @@ function applyBinaryOperator(
           return left.map((l, i) => Number(l < right[i]));
         case '>':
           return left.map((l, i) => Number(l > right[i]));
+        case '===':
+          return left.map((l, i) => Number(l === right[i]));
+        case '!==':
+          return left.map((l, i) => Number(l !== right[i]));
+        case '==':
+          // eslint-disable-next-line eqeqeq
+          return left.map((l, i) => Number(l == right[i]));
+        case '!=':
+          // eslint-disable-next-line eqeqeq
+          return left.map((l, i) => Number(l != right[i]));
       }
     }
   }
@@ -312,9 +365,7 @@ function evaluateStatement(
   throw new Error(`${(ast as any).type} not implemented`);
 }
 
-export function evalMath(str: string, context?: EvaluationContext): Numeric {
-  const program = parseAst(str);
-
+function defaultContext(context?: EvaluationContext) {
   if (context === undefined) {
     context = new Map();
   } else {
@@ -338,6 +389,13 @@ export function evalMath(str: string, context?: EvaluationContext): Numeric {
       context.set(name, VECTOR_ROUTINES[name]);
     }
   }
+  return context;
+}
+
+export function evalMath(str: string, context?: EvaluationContext): Numeric {
+  const program = parseAst(str);
+
+  context = defaultContext(context);
 
   let result: Numeric | undefined;
   for (const statement of program.body) {
@@ -358,4 +416,38 @@ export function em(strings: TemplateStringsArray, ...args: Numeric[]): Numeric {
     str += identifier + strings[i + 1];
   }
   return evalMath(str, context);
+}
+
+export function evalIncremental(
+  str: string,
+  output: Float64Array,
+  context?: EvaluationContext
+) {
+  const program = parseAst(str);
+
+  context = defaultContext(context);
+
+  // TODO: Reduce AST as much as possible
+
+  const iterationContext: EvaluationContext = new Map();
+  for (let i = 0; i < output.length; ++i) {
+    for (const [key, value] of context) {
+      if (typeof value === 'number' || typeof value === 'function') {
+        iterationContext.set(key, value);
+      } else {
+        iterationContext.set(key, value[i]);
+      }
+    }
+    let result: Numeric | undefined;
+    for (const statement of program.body) {
+      result = evaluateStatement(statement, iterationContext);
+    }
+    if (result === undefined) {
+      throw new Error('Expression must evaluate to a value');
+    }
+    if (typeof result !== 'number') {
+      throw new Error('Incremenatal evaluation must produce numbers');
+    }
+    output[i] = result;
+  }
 }

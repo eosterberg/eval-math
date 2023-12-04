@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {EvaluationContext, evalMath, em} from '..';
+import {EvaluationContext, evalMath, em, evalIncremental} from '..';
 
 describe('Math expression evaluator', () => {
   it.each([
@@ -224,5 +224,37 @@ describe('Tagged template evaluator', () => {
     expect(sum[0]).toBe(3);
     expect(sum[1]).toBe(5);
     expect(sum[2]).toBe(8);
+  });
+});
+
+describe('Incremental evaluator', () => {
+  it('Can model an infinite impulse response', () => {
+    const output = new Float64Array(5);
+    const n = output.map((_, i) => i);
+    const weave = (i: number) => output[i] ?? 0;
+    const context: EvaluationContext = new Map();
+    context.set('n', n);
+    context.set('weave', weave);
+    evalIncremental('(n == 0) + 0.5 * weave(n-1)', output, context);
+    expect(output).toEqual(new Float64Array([1, 0.5, 0.25, 0.125, 0.0625]));
+  });
+
+  it('Can do non-uniform for loops', () => {
+    const output = new Float64Array(5);
+    const n = output.map((_, i) => i);
+    const context: EvaluationContext = new Map();
+    context.set('n', n);
+    evalIncremental(
+      `
+        res = 0;
+        for (i = 0; i < n; ++i) {
+          res += i;
+        }
+        res
+      `,
+      output,
+      context
+    );
+    expect(output).toEqual(new Float64Array([0, 0, 1, 3, 6]));
   });
 });
