@@ -237,6 +237,13 @@ describe('Math expression evaluator', () => {
     expect(z[1]).toBeCloseTo(Math.sqrt(9 * 9 + 1 * 1));
     expect(z[2]).toBeCloseTo(Math.sqrt(8 * 8 + 2 * 2));
   });
+
+  it('Has a broadcasting ternary operator', () => {
+    const x = evalMath(
+      'a = arange(3); b = arange(3)**2; c = !arange(3); a ? b : c'
+    );
+    expect(x).toEqual(new Float64Array([1, 1, 4]));
+  });
 });
 
 describe('Tagged template evaluator', () => {

@@ -100,6 +100,13 @@ type ComputedMemberExpression = {
   computed: true;
 };
 
+type ConditionalExpression = {
+  type: 'ConditionalExpression';
+  test: Expression;
+  consequent: Expression;
+  alternate: Expression;
+};
+
 type Identifier = {
   type: 'Identifier';
   name: string;
@@ -118,8 +125,38 @@ type Expression =
   | UpdateExpression
   | MemberExpression
   | ComputedMemberExpression
+  | ConditionalExpression
   | Identifier
   | Literal;
+
+function applyTernaryOperator(
+  test: Numeric,
+  consequent: Numeric,
+  alternate: Numeric
+) {
+  if (typeof test === 'number') {
+    if (typeof consequent === 'number') {
+      if (typeof alternate === 'number') {
+        return test ? consequent : alternate;
+      }
+      return alternate.map(a => (test ? consequent : a));
+    }
+    if (typeof alternate === 'number') {
+      return consequent.map(c => (test ? c : alternate));
+    }
+    return consequent.map((c, i) => (test ? c : alternate[i]));
+  }
+  if (typeof consequent === 'number') {
+    if (typeof alternate === 'number') {
+      return test.map(t => (t ? consequent : alternate));
+    }
+    return test.map((t, i) => (t ? consequent : alternate[i]));
+  }
+  if (typeof alternate === 'number') {
+    return test.map((t, i) => (t ? consequent[i] : alternate));
+  }
+  return test.map((t, i) => (t ? consequent[i] : alternate[i]));
+}
 
 function applyBinaryOperator(
   operator: BinaryOperator,
@@ -292,11 +329,14 @@ function evaluateExpression(
   ast: Expression,
   context: EvaluationContext
 ): Numeric {
-  switch (ast.type) {
-    case 'Literal':
-      return ast.value;
-  }
-  if (ast.type === 'BinaryExpression') {
+  if (ast.type === 'Literal') {
+    return ast.value;
+  } else if (ast.type === 'ConditionalExpression') {
+    const test = evaluateExpression(ast.test, context);
+    const consequent = evaluateExpression(ast.consequent, context);
+    const alternate = evaluateExpression(ast.alternate, context);
+    return applyTernaryOperator(test, consequent, alternate);
+  } else if (ast.type === 'BinaryExpression') {
     const left = evaluateExpression(ast.left, context);
     const right = evaluateExpression(ast.right, context);
     return applyBinaryOperator(ast.operator, left, right);
