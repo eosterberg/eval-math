@@ -1,5 +1,10 @@
 import {parse} from './math-ast.js';
-import {type Numeric, random, VECTOR_ROUTINES} from './vector-routines';
+import {
+  type Numeric,
+  random,
+  VECTOR_ROUTINES,
+  VECTOR_PROPERTIES,
+} from './vector-routines';
 
 export type EvaluationContext = Map<string, Numeric | Function>;
 
@@ -66,7 +71,7 @@ type CallExpression = {
 type AssignmentExpression = {
   type: 'AssignmentExpression';
   operator: '=' | '+=' | '-=' | '*=' | '/=' | '**=';
-  left: Identifier;
+  left: Identifier | ComputedMemberExpression;
   right: Expression;
 };
 
@@ -75,6 +80,20 @@ type UpdateExpression = {
   operator: '++' | '--';
   argument: Identifier;
   prefix: boolean;
+};
+
+type MemberExpression = {
+  type: 'MemberExpression';
+  object: Identifier;
+  property: Identifier;
+  computed: false;
+};
+
+type ComputedMemberExpression = {
+  type: 'MemberExpression';
+  object: Identifier;
+  property: Expression;
+  computed: true;
 };
 
 type Identifier = {
@@ -93,6 +112,8 @@ type Expression =
   | CallExpression
   | AssignmentExpression
   | UpdateExpression
+  | MemberExpression
+  | ComputedMemberExpression
   | Identifier
   | Literal;
 
@@ -321,8 +342,40 @@ function evaluateExpression(
         context
       );
     }
-    context.set(ast.left.name, right);
-    return right;
+    if (ast.left.type === 'Identifier') {
+      context.set(ast.left.name, right);
+      return right;
+    } else {
+      const object = evaluateExpression(ast.left.object, context);
+      if (typeof object === 'number') {
+        throw new Error('Cannot assign properties of numbers');
+      }
+      const property = evaluateExpression(ast.left.property, context);
+      if (typeof property === 'number') {
+        if (typeof right !== 'number') {
+          throw new Error('Must assign a number');
+        }
+        if (property < 0) {
+          return (object[object.length + property] = right);
+        }
+        return (object[property] = right);
+      }
+      if (typeof right === 'number') {
+        for (let i = 0; i < object.length; ++i) {
+          if (property[i]) {
+            object[i] = right;
+          }
+        }
+      } else {
+        let j = 0;
+        for (let i = 0; i < object.length; ++i) {
+          if (property[i]) {
+            object[i] = right[j++];
+          }
+        }
+      }
+      return right;
+    }
   } else if (ast.type === 'UpdateExpression') {
     const argument = evaluateExpression(ast.argument, context);
     let newValue: Numeric;
@@ -335,6 +388,24 @@ function evaluateExpression(
     }
     context.set(ast.argument.name, newValue);
     return ast.prefix ? newValue : argument;
+  } else if (ast.type === 'MemberExpression') {
+    const object = evaluateExpression(ast.object, context);
+    if (typeof object === 'number') {
+      throw new Error('Cannot access properties of numbers');
+    }
+    if (!ast.computed) {
+      return VECTOR_PROPERTIES[ast.property.name](object);
+    }
+    const property = evaluateExpression(ast.property, context);
+    if (typeof property === 'number') {
+      if (property < 0) {
+        return object[object.length + property];
+      }
+      return object[property];
+    } else {
+      // We only have one data type so we choose the boolean implementation of numpy.
+      return object.filter((_, i) => property[i]);
+    }
   }
   throw new Error(`${(ast as any).type} not implemented`);
 }

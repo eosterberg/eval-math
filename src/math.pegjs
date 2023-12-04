@@ -623,7 +623,6 @@ MemberExpression
     )*
     {
       return tail.reduce(function(result, element) {
-        throw new Error("Member expressions not supported.");
         return {
           type: "MemberExpression",
           object: result,
@@ -651,7 +650,6 @@ CallExpression
           return { type: "CallExpression", arguments: args };
         }
       / __ "[" __ property:Expression __ "]" {
-          throw new Error("Computed property access not supported.");
           return {
             type: "MemberExpression",
             property: property,

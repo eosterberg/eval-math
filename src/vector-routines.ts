@@ -60,6 +60,10 @@ function linspace(start: number, stop: number, num = 50) {
   return new Float64Array(num).map((_, i) => start + i * step);
 }
 
+function length(n: Float64Array): number {
+  return n.length;
+}
+
 export const VECTOR_ROUTINES: Record<string, Function> = {
   zeros,
   ones,
@@ -70,3 +74,5 @@ export const VECTOR_ROUTINES: Record<string, Function> = {
   arange,
   linspace,
 };
+
+export const VECTOR_PROPERTIES: Record<string, Function> = {length};

@@ -202,6 +202,18 @@ describe('Math expression evaluator', () => {
     expect(phis[3]).toBeCloseTo(14 / 9);
     expect(phis[4]).toBeCloseTo(17 / 11);
   });
+
+  it('Supports property and array access', () => {
+    const three = evalMath('a = arange(5); a[a.length-2]');
+    expect(three).toBe(3);
+  });
+
+  it('Supports array assignment', () => {
+    const a = evalMath(
+      'a = arange(5); a[a > 2] += 10; a[0] = -10; a'
+    ) as Float64Array;
+    expect(a).toEqual(new Float64Array([-10, 1, 2, 13, 14]));
+  });
 });
 
 describe('Tagged template evaluator', () => {
