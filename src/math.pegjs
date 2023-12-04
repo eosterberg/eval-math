@@ -508,21 +508,18 @@ PrimaryExpression
 
 ArrayLiteral
   = "[" __ elision:(Elision __)? "]" {
-      throw new Error("Array expressions not supported.");
       return {
         type: "ArrayExpression",
         elements: optionalList(extractOptional(elision, 0))
       };
     }
   / "[" __ elements:ElementList __ "]" {
-      throw new Error("Array expressions not supported.");
       return {
         type: "ArrayExpression",
         elements: elements
       };
     }
   / "[" __ elements:ElementList __ "," __ elision:(Elision __)? "]" {
-      throw new Error("Array expressions not supported.");
       return {
         type: "ArrayExpression",
         elements: elements.concat(optionalList(extractOptional(elision, 0)))

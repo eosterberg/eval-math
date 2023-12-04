@@ -286,6 +286,23 @@ describe('Math expression evaluator', () => {
     const y = evalMath('b = 0; (a = 1) || (b = 999); a + b');
     expect(y).toBe(1);
   });
+
+  it('Converts arrays into Float64Arrays', () => {
+    const arr = evalMath('[1e6, 1e-6, Infinity, NaN]');
+    expect(arr).toHaveLength(4);
+    expect(arr).toBeInstanceOf(Float64Array);
+    expect(arr[0]).toBe(1000000);
+    expect(arr[1]).toBe(0.000001);
+    expect(arr[2]).toBe(Infinity);
+    expect(arr[3]).toBeNaN();
+  });
+
+  it('Has numeric versions of isFinite and isNaN', () => {
+    const yes = evalMath('isFinite(7)');
+    const no = evalMath('isNaN(7)');
+    expect(yes).toBe(1);
+    expect(no).toBe(0);
+  });
 });
 
 describe('Tagged template evaluator', () => {

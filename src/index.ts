@@ -5,7 +5,7 @@ import {
   VECTOR_ROUTINES,
   VECTOR_PROPERTIES,
 } from './vector-routines';
-import {EXTRA_FUNCTIONS} from './extra-functions';
+import {EXTRA_FUNCTIONS, EXTRA_CONSTANTS} from './extra';
 
 export type EvaluationContext = Map<string, Numeric | Function>;
 
@@ -163,6 +163,11 @@ type ConditionalExpression = {
   alternate: Expression;
 };
 
+type ArrayExpression = {
+  type: 'ArrayExpression';
+  elements: Expression[];
+};
+
 type Identifier = {
   type: 'Identifier';
   name: string;
@@ -183,6 +188,7 @@ type Expression =
   | MemberExpression
   | ComputedMemberExpression
   | ConditionalExpression
+  | ArrayExpression
   | Identifier
   | Literal;
 
@@ -607,6 +613,16 @@ function evaluateExpression(
       // We only have one data type so we choose the boolean implementation of numpy.
       return object.filter((_, i) => property[i]);
     }
+  } else if (ast.type === 'ArrayExpression') {
+    const values: number[] = [];
+    for (const element of ast.elements) {
+      const value = evaluateExpression(element, context, globals);
+      if (typeof value !== 'number') {
+        throw new Error('Only numbers can be put into arrays');
+      }
+      values.push(value);
+    }
+    return new Float64Array(values);
   }
   throw new Error(`${(ast as any).type} not implemented`);
 }
@@ -685,6 +701,10 @@ function defaultContext() {
 
   for (const name in EXTRA_FUNCTIONS) {
     context.set(name, EXTRA_FUNCTIONS[name]);
+  }
+
+  for (const name in EXTRA_CONSTANTS) {
+    context.set(name, EXTRA_CONSTANTS[name]);
   }
   return context;
 }
