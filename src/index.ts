@@ -80,13 +80,19 @@ type VariableDeclarator = {
   init: Expression;
 };
 
+type ThrowStatement = {
+  type: 'ThrowStatement';
+  argument: Expression;
+};
+
 type Statement =
   | ExpressionStatement
   | ForStatement
   | BlockStatement
   | FunctionDeclaration
   | ReturnStatement
-  | VariableDeclaration;
+  | VariableDeclaration
+  | ThrowStatement;
 
 type LogicalExpression = {
   type: 'LogicalExpression';
@@ -678,6 +684,8 @@ function evaluateStatement(
       result = init;
     }
     return result;
+  } else if (ast.type === 'ThrowStatement') {
+    throw evaluateExpression(ast.argument, context, globals);
   }
   throw new Error(`${(ast as any).type} not implemented`);
 }

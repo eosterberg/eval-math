@@ -303,6 +303,15 @@ describe('Math expression evaluator', () => {
     expect(yes).toBe(1);
     expect(no).toBe(0);
   });
+
+  it('Supports throwing', () => {
+    expect(() => evalMath('throw PI')).toThrow();
+    try {
+      evalMath('throw 8');
+    } catch (e) {
+      expect(e).toBe(8);
+    }
+  });
 });
 
 describe('Tagged template evaluator', () => {
