@@ -257,14 +257,20 @@ describe('Math expression evaluator', () => {
 
   it('Respects the return statement of user-defined functions', () => {
     const x = evalMath(`
+      quux = 0;
+      baz = 5;
+      bar = 3;
       function foo() {
+        quux = 1;  // Should be visible
+        var baz = -10;  // Should have no effect
         return 1;
         // Should be unreachable
+        bar = 9001;
         2;
       }
-      foo();
+      foo() + bar + baz + quux;
     `);
-    expect(x).toBe(1);
+    expect(x).toBe(1 + 3 + 5 + 1);
   });
 });
 

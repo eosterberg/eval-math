@@ -62,12 +62,25 @@ type ReturnStatement = {
   argument: Expression;
 };
 
+type VariableDeclaration = {
+  type: 'VariableDeclaration';
+  declarations: VariableDeclarator[];
+  kind: 'var';
+};
+
+type VariableDeclarator = {
+  type: 'VariableDeclarator';
+  id: Identifier;
+  init: Expression;
+};
+
 type Statement =
   | ExpressionStatement
   | ForStatement
   | BlockStatement
   | FunctionDeclaration
-  | ReturnStatement;
+  | ReturnStatement
+  | VariableDeclaration;
 
 type BinaryExpression = {
   type: 'BinaryExpression';
@@ -344,24 +357,25 @@ function parseAst(source: string): Program {
 
 function evaluateExpression(
   ast: Expression,
-  context: EvaluationContext
+  context: EvaluationContext,
+  globals: EvaluationContext
 ): Numeric {
   if (ast.type === 'Literal') {
     return ast.value;
   } else if (ast.type === 'ConditionalExpression') {
-    const test = evaluateExpression(ast.test, context);
-    const consequent = evaluateExpression(ast.consequent, context);
-    const alternate = evaluateExpression(ast.alternate, context);
+    const test = evaluateExpression(ast.test, context, globals);
+    const consequent = evaluateExpression(ast.consequent, context, globals);
+    const alternate = evaluateExpression(ast.alternate, context, globals);
     return applyTernaryOperator(test, consequent, alternate);
   } else if (ast.type === 'BinaryExpression') {
-    const left = evaluateExpression(ast.left, context);
-    const right = evaluateExpression(ast.right, context);
+    const left = evaluateExpression(ast.left, context, globals);
+    const right = evaluateExpression(ast.right, context, globals);
     return applyBinaryOperator(ast.operator, left, right);
   } else if (ast.type === 'UnaryExpression') {
     if (!ast.prefix) {
       throw new Error('Only prefix unary operators implemented');
     }
-    const argument = evaluateExpression(ast.argument, context);
+    const argument = evaluateExpression(ast.argument, context, globals);
     switch (ast.operator) {
       case '+':
         return typeof argument === 'number' ? +argument : argument.map(x => +x);
@@ -375,14 +389,17 @@ function evaluateExpression(
         throw new Error(`Unimplemented operator '${(ast as any).operator}'`);
     }
   } else if (ast.type === 'CallExpression') {
-    if (!context.has(ast.callee.name)) {
-      throw new Error(`ReferenceError: ${ast.callee.name} is not defined`);
+    const name = ast.callee.name;
+    if (!context.has(name) && !globals.has(name)) {
+      throw new Error(`ReferenceError: ${name} is not defined`);
     }
-    const callee = context.get(ast.callee.name);
+    const callee = context.get(name) ?? globals.get(name);
     if (typeof callee !== 'function') {
-      throw new Error(`TypeError: ${ast.callee.name} is not a function`);
+      throw new Error(`TypeError: ${name} is not a function`);
     }
-    const args = ast.arguments.map(arg => evaluateExpression(arg, context));
+    const args = ast.arguments.map(arg =>
+      evaluateExpression(arg, context, globals)
+    );
     if (args.every(arg => typeof arg === 'number')) {
       return callee(...args);
     }
@@ -421,10 +438,11 @@ function evaluateExpression(
     }
     return result;
   } else if (ast.type === 'Identifier') {
-    if (!context.has(ast.name)) {
-      throw new Error(`ReferenceError: ${ast.name} is not defined`);
+    const name = ast.name;
+    if (!context.has(name) && !globals.has(name)) {
+      throw new Error(`ReferenceError: ${name} is not defined`);
     }
-    const value = context.get(ast.name)!;
+    const value = context.get(name) ?? globals.get(name)!;
     if (typeof value === 'function') {
       throw new Error('Cannot evaluate to a function');
     }
@@ -432,7 +450,7 @@ function evaluateExpression(
   } else if (ast.type === 'AssignmentExpression') {
     let right: Numeric;
     if (ast.operator === '=') {
-      right = evaluateExpression(ast.right, context);
+      right = evaluateExpression(ast.right, context, globals);
     } else {
       right = evaluateExpression(
         {
@@ -441,18 +459,23 @@ function evaluateExpression(
           left: ast.left,
           right: ast.right,
         },
-        context
+        context,
+        globals
       );
     }
     if (ast.left.type === 'Identifier') {
-      context.set(ast.left.name, right);
+      if (context.has(ast.left.name)) {
+        context.set(ast.left.name, right);
+      } else {
+        globals.set(ast.left.name, right);
+      }
       return right;
     } else {
-      const object = evaluateExpression(ast.left.object, context);
+      const object = evaluateExpression(ast.left.object, context, globals);
       if (typeof object === 'number') {
         throw new Error('Cannot assign properties of numbers');
       }
-      const property = evaluateExpression(ast.left.property, context);
+      const property = evaluateExpression(ast.left.property, context, globals);
       if (typeof property === 'number') {
         if (typeof right !== 'number') {
           throw new Error('Must assign a number');
@@ -479,7 +502,7 @@ function evaluateExpression(
       return right;
     }
   } else if (ast.type === 'UpdateExpression') {
-    const argument = evaluateExpression(ast.argument, context);
+    const argument = evaluateExpression(ast.argument, context, globals);
     let newValue: Numeric;
     if (ast.operator === '++') {
       newValue =
@@ -488,17 +511,21 @@ function evaluateExpression(
       newValue =
         typeof argument === 'number' ? argument - 1 : argument.map(a => a - 1);
     }
-    context.set(ast.argument.name, newValue);
+    if (context.has(ast.argument.name)) {
+      context.set(ast.argument.name, newValue);
+    } else {
+      globals.set(ast.argument.name, newValue);
+    }
     return ast.prefix ? newValue : argument;
   } else if (ast.type === 'MemberExpression') {
-    const object = evaluateExpression(ast.object, context);
+    const object = evaluateExpression(ast.object, context, globals);
     if (typeof object === 'number') {
       throw new Error('Cannot access properties of numbers');
     }
     if (!ast.computed) {
       return VECTOR_PROPERTIES[ast.property.name](object);
     }
-    const property = evaluateExpression(ast.property, context);
+    const property = evaluateExpression(ast.property, context, globals);
     if (typeof property === 'number') {
       if (property < 0) {
         return object[object.length + property];
@@ -514,17 +541,18 @@ function evaluateExpression(
 
 function evaluateStatement(
   ast: Statement,
-  context: EvaluationContext
+  context: EvaluationContext,
+  globals: EvaluationContext
 ): Numeric | Function | undefined {
   if (ast.type === 'ExpressionStatement') {
-    return evaluateExpression(ast.expression, context);
+    return evaluateExpression(ast.expression, context, globals);
   } else if (ast.type === 'BlockStatement') {
     // Are we CoffeeScript now?
     let hasReturned = false;
     let result: Numeric | Function | undefined;
     for (const statement of ast.body) {
       if (!hasReturned) {
-        result = evaluateStatement(statement, context);
+        result = evaluateStatement(statement, context, globals);
       }
       hasReturned ||= statement.type === 'ReturnStatement';
     }
@@ -532,73 +560,74 @@ function evaluateStatement(
   } else if (ast.type === 'ForStatement') {
     let result: Numeric | Function | undefined;
     for (
-      result = evaluateExpression(ast.init, context);
-      (result = evaluateExpression(ast.test, context));
-      result = evaluateExpression(ast.update, context)
+      result = evaluateExpression(ast.init, context, globals);
+      (result = evaluateExpression(ast.test, context, globals));
+      result = evaluateExpression(ast.update, context, globals)
     ) {
-      result = evaluateStatement(ast.body, context);
+      result = evaluateStatement(ast.body, context, globals);
     }
     return result;
   } else if (ast.type === 'FunctionDeclaration') {
     const declaration = ast;
     // eslint-disable-next-line no-inner-declarations
     function userDefined(...args: Numeric[]) {
-      const localContext: EvaluationContext = new Map(context);
+      const locals: EvaluationContext = new Map(context);
       for (let i = 0; i < declaration.params.length; ++i) {
-        localContext.set(declaration.params[i].name, args[i]);
+        locals.set(declaration.params[i].name, args[i]);
       }
-      return evaluateStatement(declaration.body, localContext);
+      return evaluateStatement(declaration.body, locals, globals);
     }
     userDefined.prototype.name = declaration.id.name;
     context.set(declaration.id.name, userDefined);
     return userDefined;
   } else if (ast.type === 'ReturnStatement') {
-    return evaluateExpression(ast.argument, context);
+    return evaluateExpression(ast.argument, context, globals);
+  } else if (ast.type === 'VariableDeclaration') {
+    let result: Numeric | Function | undefined;
+    for (const declarator of ast.declarations) {
+      const init = evaluateExpression(declarator.init, context, globals);
+      context.set(declarator.id.name, init);
+      result = init;
+    }
+    return result;
   }
   throw new Error(`${(ast as any).type} not implemented`);
 }
 
-function defaultContext(context?: EvaluationContext) {
-  if (context === undefined) {
-    context = new Map();
-  } else {
-    context = new Map(context);
-  }
+function defaultContext() {
+  const context: EvaluationContext = new Map();
 
   const mathPropNames = Object.getOwnPropertyNames(Math);
   const mathRecord = Math as unknown as Record<string, number | Function>;
   for (const name of mathPropNames) {
-    if (!context.has(name)) {
-      if (name === 'random') {
-        context.set(name, random);
-      } else {
-        context.set(name, mathRecord[name]);
-      }
+    if (name === 'random') {
+      context.set(name, random);
+    } else {
+      context.set(name, mathRecord[name]);
     }
   }
 
   for (const name in VECTOR_ROUTINES) {
-    if (!context.has(name)) {
-      context.set(name, VECTOR_ROUTINES[name]);
-    }
+    context.set(name, VECTOR_ROUTINES[name]);
   }
 
   for (const name in EXTRA_FUNCTIONS) {
-    if (!context.has(name)) {
-      context.set(name, EXTRA_FUNCTIONS[name]);
-    }
+    context.set(name, EXTRA_FUNCTIONS[name]);
   }
   return context;
 }
 
-export function evalMath(str: string, context?: EvaluationContext): Numeric {
+export function evalMath(str: string, locals?: EvaluationContext): Numeric {
   const program = parseAst(str);
 
-  context = defaultContext(context);
+  const globals = defaultContext();
+  if (locals === undefined) {
+    locals = new Map();
+  }
 
   let result: Numeric | Function | undefined;
   for (const statement of program.body) {
-    result = evaluateStatement(statement, context);
+    result = evaluateStatement(statement, locals, globals);
   }
   if (result === undefined || typeof result === 'function') {
     throw new Error('Expression must evaluate to a value');
@@ -607,30 +636,33 @@ export function evalMath(str: string, context?: EvaluationContext): Numeric {
 }
 
 export function em(strings: TemplateStringsArray, ...args: Numeric[]): Numeric {
-  const context: EvaluationContext = new Map();
+  const locals: EvaluationContext = new Map();
   let str = strings[0];
   for (let i = 0; i < args.length; ++i) {
     const identifier = `__templateArgument${i}`;
-    context.set(identifier, args[i]);
+    locals.set(identifier, args[i]);
     str += identifier + strings[i + 1];
   }
-  return evalMath(str, context);
+  return evalMath(str, locals);
 }
 
 export function evalIncremental(
   str: string,
   output: Float64Array,
-  context?: EvaluationContext
+  locals?: EvaluationContext
 ) {
   const program = parseAst(str);
 
-  context = defaultContext(context);
+  const globals = defaultContext();
+  if (locals === undefined) {
+    locals = new Map();
+  }
 
   // TODO: Reduce AST as much as possible
 
   const iterationContext: EvaluationContext = new Map();
   for (let i = 0; i < output.length; ++i) {
-    for (const [key, value] of context) {
+    for (const [key, value] of locals) {
       if (typeof value === 'number' || typeof value === 'function') {
         iterationContext.set(key, value);
       } else {
@@ -639,7 +671,7 @@ export function evalIncremental(
     }
     let result: Numeric | Function | undefined;
     for (const statement of program.body) {
-      result = evaluateStatement(statement, iterationContext);
+      result = evaluateStatement(statement, iterationContext, globals);
     }
     if (result === undefined || typeof result === 'function') {
       throw new Error('Expression must evaluate to a value');
