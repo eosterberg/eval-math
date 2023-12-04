@@ -312,6 +312,24 @@ describe('Math expression evaluator', () => {
       expect(e).toBe(8);
     }
   });
+
+  it('Supports for...in', () => {
+    const sum = evalMath('sum = 0; for (i in zeros(4)) sum += i');
+    expect(sum).toBe(0 + 1 + 2 + 3);
+  });
+
+  it('Supports for...of', () => {
+    const sum = evalMath('sum = 0; for (i of 2*arange(4)) sum += i');
+    expect(sum).toBe(0 + 2 + 4 + 6);
+  });
+
+  it('Reserves const', () => {
+    expect(() => evalMath('const = 42')).toThrow();
+  });
+
+  it('Reserves let', () => {
+    expect(() => evalMath('let = 42')).toThrow();
+  });
 });
 
 describe('Tagged template evaluator', () => {

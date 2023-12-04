@@ -85,6 +85,20 @@ type ThrowStatement = {
   argument: Expression;
 };
 
+type ForInStatement = {
+  type: 'ForInStatement';
+  left: Identifier;
+  right: Expression;
+  body: Statement;
+};
+
+type ForOfStatement = {
+  type: 'ForOfStatement';
+  left: Identifier;
+  right: Expression;
+  body: Statement;
+};
+
 type Statement =
   | ExpressionStatement
   | ForStatement
@@ -92,7 +106,9 @@ type Statement =
   | FunctionDeclaration
   | ReturnStatement
   | VariableDeclaration
-  | ThrowStatement;
+  | ThrowStatement
+  | ForInStatement
+  | ForOfStatement;
 
 type LogicalExpression = {
   type: 'LogicalExpression';
@@ -686,6 +702,22 @@ function evaluateStatement(
     return result;
   } else if (ast.type === 'ThrowStatement') {
     throw evaluateExpression(ast.argument, context, globals);
+  } else if (ast.type === 'ForInStatement') {
+    let result: Numeric | Function | undefined;
+    const right = evaluateExpression(ast.right, context, globals);
+    for (const left in right as Float64Array) {
+      context.set(ast.left.name, parseInt(left, 10));
+      result = evaluateStatement(ast.body, context, globals);
+    }
+    return result;
+  } else if (ast.type === 'ForOfStatement') {
+    let result: Numeric | Function | undefined;
+    const right = evaluateExpression(ast.right, context, globals);
+    for (const left of right as Float64Array) {
+      context.set(ast.left.name, left);
+      result = evaluateStatement(ast.body, context, globals);
+    }
+    return result;
   }
   throw new Error(`${(ast as any).type} not implemented`);
 }
