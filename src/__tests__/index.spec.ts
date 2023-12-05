@@ -354,6 +354,31 @@ describe('Math expression evaluator', () => {
     `);
     expect(x).toBe(2 + 3 + 4 + 4);
   });
+
+  it('Supports while', () => {
+    const x = evalMath(`
+      phi = 1
+      last = 2
+      while(abs(phi - last) > 1e-7) {
+        last = phi
+        phi = 1 + 1 / phi
+      }
+      phi
+    `);
+    expect(x).toBeCloseTo(Math.sqrt(1.25) + 0.5);
+  });
+
+  it('Supports do...while', () => {
+    const x = evalMath(`
+      phi = 1
+      do {
+        last = phi
+        phi = 1 + 1 / phi
+      } while(abs(phi - last) > 1e-7)
+      phi
+    `);
+    expect(x).toBeCloseTo(Math.sqrt(1.25) + 0.5);
+  });
 });
 
 describe('Tagged template evaluator', () => {

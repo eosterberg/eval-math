@@ -116,6 +116,18 @@ type BreakStatement = {
   label: Identifier | null;
 };
 
+type WhileStatement = {
+  type: 'WhileStatement';
+  test: Expression;
+  body: Statement;
+};
+
+type DoWhileStatement = {
+  type: 'DoWhileStatement';
+  body: Statement;
+  test: Expression;
+};
+
 type Statement =
   | ExpressionStatement
   | ForStatement
@@ -128,7 +140,9 @@ type Statement =
   | ForOfStatement
   | IfStatement
   | ContinueStatement
-  | BreakStatement;
+  | BreakStatement
+  | WhileStatement
+  | DoWhileStatement;
 
 type LogicalExpression = {
   type: 'LogicalExpression';
@@ -818,6 +832,40 @@ function evaluateStatement(
   } else if (ast.type === 'ContinueStatement') {
     context.set('#continue', 1);
     return;
+  } else if (ast.type === 'WhileStatement') {
+    let result: Numeric | Function | undefined;
+    while (evaluateExpression(ast.test, context, globals)) {
+      result = evaluateStatement(ast.body, context, globals);
+      if (context.get('#return')) {
+        break;
+      }
+      if (context.get('#break')) {
+        context.delete('#break');
+        break;
+      }
+      if (context.get('#continue')) {
+        context.delete('#continue');
+        continue;
+      }
+    }
+    return result;
+  } else if (ast.type === 'DoWhileStatement') {
+    let result: Numeric | Function | undefined;
+    do {
+      result = evaluateStatement(ast.body, context, globals);
+      if (context.get('#return')) {
+        break;
+      }
+      if (context.get('#break')) {
+        context.delete('#break');
+        break;
+      }
+      if (context.get('#continue')) {
+        context.delete('#continue');
+        continue;
+      }
+    } while (evaluateExpression(ast.test, context, globals));
+    return result;
   }
   throw new Error(`${(ast as any).type} not implemented`);
 }
