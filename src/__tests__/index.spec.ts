@@ -319,7 +319,7 @@ describe('Math expression evaluator', () => {
   });
 
   it('Supports for...of', () => {
-    const sum = evalMath('sum = 0; for (i of 2*arange(4)) sum += i');
+    const sum = evalMath('sum = 0; for (var i of 2*arange(4)) sum += i');
     expect(sum).toBe(0 + 2 + 4 + 6);
   });
 
@@ -334,6 +334,25 @@ describe('Math expression evaluator', () => {
   it('Supports if...else', () => {
     const five = evalMath('if (1) 5; else 7');
     expect(five).toBe(5);
+  });
+
+  it('Supports break and continue', () => {
+    const x = evalMath(`
+      a = 0;
+      b = 0;
+      for (var i = 0; i < 6; ++i) {
+        b = i;
+        if (i < 2) {
+          continue;
+        }
+        a += i;
+        if (i == 4) {
+          break;
+        }
+      }
+      a + b;
+    `);
+    expect(x).toBe(2 + 3 + 4 + 4);
   });
 });
 

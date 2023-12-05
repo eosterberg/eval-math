@@ -45,7 +45,7 @@ type ExpressionStatement = {
 
 type ForStatement = {
   type: 'ForStatement';
-  init: Expression;
+  init: Expression | VariableDeclaration;
   test: Expression;
   update: Expression;
   body: Statement;
@@ -65,7 +65,7 @@ type FunctionDeclaration = {
 
 type ReturnStatement = {
   type: 'ReturnStatement';
-  argument: Expression;
+  argument: Expression | null;
 };
 
 type VariableDeclaration = {
@@ -87,14 +87,14 @@ type ThrowStatement = {
 
 type ForInStatement = {
   type: 'ForInStatement';
-  left: Identifier;
+  left: Identifier | VariableDeclaration;
   right: Expression;
   body: Statement;
 };
 
 type ForOfStatement = {
   type: 'ForOfStatement';
-  left: Identifier;
+  left: Identifier | VariableDeclaration;
   right: Expression;
   body: Statement;
 };
@@ -103,7 +103,17 @@ type IfStatement = {
   type: 'IfStatement';
   test: Expression;
   consequent: Statement;
-  alternate: Statement;
+  alternate: Statement | null;
+};
+
+type ContinueStatement = {
+  type: 'ContinueStatement';
+  label: Identifier | null;
+};
+
+type BreakStatement = {
+  type: 'BreakStatement';
+  label: Identifier | null;
 };
 
 type Statement =
@@ -116,7 +126,9 @@ type Statement =
   | ThrowStatement
   | ForInStatement
   | ForOfStatement
-  | IfStatement;
+  | IfStatement
+  | ContinueStatement
+  | BreakStatement;
 
 type LogicalExpression = {
   type: 'LogicalExpression';
@@ -665,24 +677,43 @@ function evaluateStatement(
   if (ast.type === 'ExpressionStatement') {
     return evaluateExpression(ast.expression, context, globals);
   } else if (ast.type === 'BlockStatement') {
-    // Are we CoffeeScript now?
-    let hasReturned = false;
     let result: Numeric | Function | undefined;
     for (const statement of ast.body) {
-      if (!hasReturned) {
-        result = evaluateStatement(statement, context, globals);
+      result = evaluateStatement(statement, context, globals);
+      if (
+        context.get('#return') ||
+        context.get('#break') ||
+        context.get('#continue')
+      ) {
+        return result;
       }
-      hasReturned ||= statement.type === 'ReturnStatement';
     }
+    // CoffeeScript, is that you?
     return result;
   } else if (ast.type === 'ForStatement') {
     let result: Numeric | Function | undefined;
-    for (
+    if (ast.init.type === 'VariableDeclaration') {
+      result = evaluateStatement(ast.init, context, globals);
+    } else {
       result = evaluateExpression(ast.init, context, globals);
+    }
+    for (
+      ;
       (result = evaluateExpression(ast.test, context, globals));
       result = evaluateExpression(ast.update, context, globals)
     ) {
       result = evaluateStatement(ast.body, context, globals);
+      if (context.get('#return')) {
+        break;
+      }
+      if (context.get('#break')) {
+        context.delete('#break');
+        break;
+      }
+      if (context.get('#continue')) {
+        context.delete('#continue');
+        continue;
+      }
     }
     return result;
   } else if (ast.type === 'FunctionDeclaration') {
@@ -693,13 +724,18 @@ function evaluateStatement(
       for (let i = 0; i < declaration.params.length; ++i) {
         locals.set(declaration.params[i].name, args[i]);
       }
+      // The #return flag disappears with locals.
       return evaluateStatement(declaration.body, locals, globals);
     }
     userDefined.prototype.name = declaration.id.name;
     context.set(declaration.id.name, userDefined);
     return userDefined;
   } else if (ast.type === 'ReturnStatement') {
-    return evaluateExpression(ast.argument, context, globals);
+    context.set('#return', 1);
+    if (ast.argument) {
+      return evaluateExpression(ast.argument, context, globals);
+    }
+    return;
   } else if (ast.type === 'VariableDeclaration') {
     let result: Numeric | Function | undefined;
     for (const declarator of ast.declarations) {
@@ -713,17 +749,58 @@ function evaluateStatement(
   } else if (ast.type === 'ForInStatement') {
     let result: Numeric | Function | undefined;
     const right = evaluateExpression(ast.right, context, globals);
-    for (const left in right as Float64Array) {
-      context.set(ast.left.name, parseInt(left, 10));
+    for (const key in right as Float64Array) {
+      const left = parseInt(key, 10);
+      if (ast.left.type === 'Identifier') {
+        globals.set(ast.left.name, left);
+      } else {
+        if (ast.left.declarations.length !== 1) {
+          throw new Error(
+            "Only a single variable can be declared in for...in'"
+          );
+        }
+        context.set(ast.left.declarations[0].id.name, left);
+      }
       result = evaluateStatement(ast.body, context, globals);
+      if (context.get('#return')) {
+        break;
+      }
+      if (context.get('#break')) {
+        context.delete('#break');
+        break;
+      }
+      if (context.get('#continue')) {
+        context.delete('#continue');
+        continue;
+      }
     }
     return result;
   } else if (ast.type === 'ForOfStatement') {
     let result: Numeric | Function | undefined;
     const right = evaluateExpression(ast.right, context, globals);
     for (const left of right as Float64Array) {
-      context.set(ast.left.name, left);
+      if (ast.left.type === 'Identifier') {
+        globals.set(ast.left.name, left);
+      } else {
+        if (ast.left.declarations.length !== 1) {
+          throw new Error(
+            "Only a single variable can be declared in for...of'"
+          );
+        }
+        context.set(ast.left.declarations[0].id.name, left);
+      }
       result = evaluateStatement(ast.body, context, globals);
+      if (context.get('#return')) {
+        break;
+      }
+      if (context.get('#break')) {
+        context.delete('#break');
+        break;
+      }
+      if (context.get('#continue')) {
+        context.delete('#continue');
+        continue;
+      }
     }
     return result;
   } else if (ast.type === 'IfStatement') {
@@ -731,7 +808,16 @@ function evaluateStatement(
     if (test) {
       return evaluateStatement(ast.consequent, context, globals);
     }
-    return evaluateStatement(ast.alternate, context, globals);
+    if (ast.alternate) {
+      return evaluateStatement(ast.alternate, context, globals);
+    }
+    return test;
+  } else if (ast.type === 'BreakStatement') {
+    context.set('#break', 1);
+    return;
+  } else if (ast.type === 'ContinueStatement') {
+    context.set('#continue', 1);
+    return;
   }
   throw new Error(`${(ast as any).type} not implemented`);
 }
