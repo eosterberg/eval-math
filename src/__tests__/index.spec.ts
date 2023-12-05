@@ -434,4 +434,16 @@ describe('Incremental evaluator', () => {
     );
     expect(output).toEqual(new Float64Array([0, 0, 1, 3, 6]));
   });
+
+  it('Supports providing iterative and vector context', () => {
+    const output = new Float64Array(4);
+    const n = output.map((_, i) => i);
+    const primes = new Float64Array([2, 3, 5, 7]);
+    const iterative: EvaluationContext = new Map();
+    iterative.set('n', n);
+    const vectors: EvaluationContext = new Map();
+    vectors.set('PRIMES', primes);
+    evalIncremental('n * PRIMES[n]', output, iterative, vectors);
+    expect(output).toEqual(new Float64Array([0, 3, 10, 21]));
+  });
 });

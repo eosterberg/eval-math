@@ -929,7 +929,8 @@ export function em(strings: TemplateStringsArray, ...args: Numeric[]): Numeric {
 export function evalIncremental(
   str: string,
   output: Float64Array,
-  locals?: EvaluationContext
+  locals?: EvaluationContext,
+  vectors?: EvaluationContext
 ) {
   const program = parseAst(str);
 
@@ -940,7 +941,7 @@ export function evalIncremental(
 
   // TODO: Reduce AST as much as possible
 
-  const iterationContext: EvaluationContext = new Map();
+  const iterationContext: EvaluationContext = new Map(vectors);
   for (let i = 0; i < output.length; ++i) {
     for (const [key, value] of locals) {
       if (typeof value === 'number' || typeof value === 'function') {
