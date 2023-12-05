@@ -2,10 +2,44 @@
   "name": "eval-math",
   "version": "1.0.0",
   "description": "Javascript library for evaluating math expressions.",
-  "main": "index.js",
+  "keywords": [
+    "Mathematics",
+    "Math",
+    "Expression",
+    "Evaluation",
+    "Eval"
+  ],
+  "main": "dist/index",
+  "files": [
+    "dist"
+  ],
+  "types": "dist/index.d.ts",
   "scripts": {
-    "test": "node test.js"
+    "test": "vitest",
+    "lint": "gts lint",
+    "clean": "gts clean",
+    "compile-parser": "peggy src/math.pegjs -o src/math-ast.js",
+    "precompile": "npm run compile-parser",
+    "compile": "tsc",
+    "fix": "gts fix",
+    "prepare": "npm run compile",
+    "pretest": "npm run compile",
+    "posttest": "npm run lint"
   },
   "author": "Erik Österberg",
-  "license": "MIT"
+  "contributors": [
+    "Lumi Pakkanen"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eosterberg/eval-math.git"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "20.8.2",
+    "gts": "^5.2.0",
+    "peggy": "^3.0.2",
+    "typescript": "~5.2.0",
+    "vitest": "^0.34.6"
+  }
 }
